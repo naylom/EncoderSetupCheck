@@ -9,7 +9,7 @@
 
    It uses interrupts to process in the incoming signals and hence requires an Arduino with 3 pins that can generate interrupts. All testing has been done on an Arduino Mega2560.
 
-   Ver 1 - Initial release
+   Ver 1 - Initial release, Dec 2020
 
  */
 
