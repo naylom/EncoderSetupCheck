@@ -3,7 +3,7 @@
 
    Arduino sketch to help check the inputs are being seen correctly before using the encoder quality check sketch
 
-   First identifies which of first 21 digital pins will support interrupts then looks (for 15 seconds) for signals with pins in INPUT_PULLUP mode 
+   First identifies which of first 21 digital pins will support interrupts then looks for 15 seconds (default) for signals with pins in INPUT_PULLUP mode 
    
    and then checks any remaining pins (for another 15 seconds) using INPUT if any signals subsequently seen. Stops after 3 or more pins seen genertaing interrupts
 
@@ -17,6 +17,8 @@
 #define BAUD_RATE                 115200
 #define VER                       1
 #define CHECK_TIME				  15						// time to wait (in seconds) to see signals 
+#define	PINS_LOOKING_FOR		  3							// Number of pins expected to signal, quit when reached
+#define SKIP_INPUT_PULLUP_CHECK	  false
 
 // ISR Routine declarations
 void ISR0 ( void );
@@ -73,13 +75,15 @@ class CPinData							// Information about a Pin
 {
 	// Data
 private:
-	int				m_iCurrentPinMode;
-	int				m_iPinNum;
-	bool			m_bHasBeenSignalled;
-	unsigned long	m_ulInterruptCount;
-	unsigned long	m_ulLastSignalTime;
-	int				m_iInputModeWhenSignalled;
-	void			(*m_pISR)();		// Interrupt routine for this Pin
+	int						m_iCurrentPinMode;
+	int						m_iPinNum;
+	volatile bool			m_bHasBeenSignalled;
+	volatile unsigned long	m_ulInterruptCount;
+	volatile unsigned long	m_ulLastSignalTime;
+	volatile unsigned long  m_ulIntervalSum;
+	volatile int			m_iInputModeWhenSignalled;
+	volatile int			m_iNoiseCount;
+	void					(*m_pISR)();		// Interrupt routine for this Pin
 public:
 	
 	// Implementation
@@ -99,6 +103,8 @@ public:
 		m_pISR = 0;
 		m_ulInterruptCount = 0UL;
 		m_ulLastSignalTime = 0UL;
+		m_iNoiseCount = 0;
+		m_ulIntervalSum = 0;
 	}
 
 	~CPinData()
@@ -112,10 +118,14 @@ public:
 	bool HasSignalled() const { return m_bHasBeenSignalled; }
 	int InputModeWhenSignalled () const { return m_iInputModeWhenSignalled; }
 	void theISR ( void (*fn)() ) { m_pISR = fn;}
-	unsigned long InterruptTime () { return m_ulLastSignalTime; }
+	unsigned long InterruptTime () const { return m_ulLastSignalTime; }
 	void InterruptTime ( unsigned long ulTime ) { m_ulLastSignalTime = ulTime; }
+	void IncNoise () { m_iNoiseCount++; }
+	int Noise () const { return m_iNoiseCount; }
+	void IncInterval ( unsigned long ulInc ) { m_ulIntervalSum += ulInc; }
+	unsigned long Intervals () { return m_ulIntervalSum; }
 
-	String GetSignalledInputMode ()
+	String GetSignalledInputMode () const
 	{
 		String sResult;
 		switch ( m_iInputModeWhenSignalled )
@@ -150,7 +160,7 @@ public:
 		m_ulInterruptCount++;
 	}
 
-	unsigned long GetInterruptCount()
+	unsigned long GetInterruptCount() const
 	{
 		return m_ulInterruptCount;
 	}
@@ -163,7 +173,6 @@ public:
 
 	void StartISR()
 	{
-		InterruptTime ( micros() );
 		attachInterrupt ( digitalPinToInterrupt ( PinNum() ), m_pISR, FALLING );
 	}
 
@@ -178,8 +187,10 @@ class CBoardPins						// Class to hold and manipulate pins to be checked
 	// Data
 public:
 private:
-	int			m_iNumPins;			// Number of digital pins that support interrupts on this board
-	CPinData *	m_aPinData[MAX_PINS_TO_CHECK];
+	bool			m_bStart;
+	int				m_iNumPins;			// Number of digital pins that support interrupts on this board
+	volatile int	m_iNumPinsSignalled;
+	CPinData *		m_aPinData [ MAX_PINS_TO_CHECK] ;
 	
 	// Implementations
 private:
@@ -188,6 +199,8 @@ public:
 	CBoardPins()
 	{
 		m_iNumPins = 0;
+		m_iNumPinsSignalled = 0;
+		m_bStart = false;
 		// create CPinData instances
 		// determine which pins can support interrupts   
 		for ( int i = 0 ; i < NUM_DIGITAL_PINS ; i++ )
@@ -209,20 +222,40 @@ public:
 			delete m_aPinData [ i ];
 		}
 	}
-
+	// called by ISRs
 	void UpdateSignalInfo ( int iIndex )
 	{
-		// Find matching Index
-		for ( int i = 0 ; i < NumPins() ; i++ )
+		if ( m_bStart && m_iNumPinsSignalled < PINS_LOOKING_FOR )
 		{
-			if ( m_aPinData [ i ]->PinNum() == iIndex )
+			unsigned long ulTimeNow = micros();			// this does not change when called in an ISR
+			// Find matching Index
+			for ( int i = 0 ; i < NumPins() ; i++ )
 			{
-				// Set has signalled to true
-				if ( micros() - m_aPinData [ i ]->InterruptTime() > 5UL )
-				{				
-					m_aPinData [ i ]->HasSignalled ( true );
-					m_aPinData [ i ]->IncInterruptCount();
-					m_aPinData [ i ]->InterruptTime ( micros() );
+				if ( m_aPinData [ i ]->PinNum() == iIndex )
+				{
+					// Set has signalled to true
+					unsigned long ulLastTime = m_aPinData [ i ]->InterruptTime();
+					unsigned long ulInterval = ulTimeNow - ulLastTime;
+					if ( ulInterval > 50UL )		// micros gives results that are multiple of 4 micros
+					{				
+						if ( m_aPinData [ i ]->HasSignalled() == false )
+						{
+							// first time this pin has signalled since start
+							m_iNumPinsSignalled++;
+							m_aPinData [ i ]->HasSignalled ( true );
+						}
+						else
+						{
+							m_aPinData [ i ]->IncInterval ( ulInterval );
+						}
+						m_aPinData [ i ]->InterruptTime ( ulTimeNow );
+						m_aPinData [ i ]->IncInterruptCount();
+					}
+					else
+					{
+						m_aPinData [ i ]->IncNoise();
+					}
+					break;					
 				}
 			}
 		}
@@ -230,8 +263,12 @@ public:
 	
 	// Getter and Setters
 	int NumPins() const { return m_iNumPins; }
+	int NumPinsSignalled() const { return m_iNumPinsSignalled; }
+	
+	void Start () { m_bStart = true; }
+	void Stop () { m_bStart = false; }
 
-	int GetPinNumber ( int iIndex )
+	int GetPinNumber ( int iIndex ) const
 	{
 		int iResult = -1;
 		if ( iIndex < NumPins() )
@@ -253,21 +290,9 @@ public:
 		}
 	}
 
-	int NumPinsSignalled ()
-	{
-		int iResult = 0;
-		for ( int i = 0 ; i < NumPins() ; i++ )
-		{
-			if ( m_aPinData [ i ]->HasSignalled() == true )
-			{
-				iResult++;
-			}
-		}
-		return iResult;
-	}
-
 	void StartISRs ()
 	{
+		noInterrupts();
 		for ( int i = 0 ; i < NumPins() ; i ++ )
 		{
 			if ( m_aPinData [ i ]->HasSignalled() == false )
@@ -275,14 +300,18 @@ public:
 				m_aPinData [ i ]->StartISR();
 			}			
 		}
+		interrupts();
 	}
 
 	void StopISRs()
 	{
+		noInterrupts();
 		for ( int i = 0 ; i < NumPins() ; i ++ )
 		{
 			m_aPinData [ i ]->StopISR();
 		}
+		interrupts();
+		Stop();
 	}
 
 	void DisplayResults()
@@ -295,8 +324,12 @@ public:
 			Serial.print ( digitalPinToInterrupt ( m_aPinData [ i ]->PinNum() ) );
 			if ( m_aPinData [ i ]->HasSignalled() == true )
 			{
-				Serial.print ( " signalled when pin was set to mode : " );
+				Serial.print ( " signalled in mode " );
 				Serial.print ( m_aPinData [ i ]->GetSignalledInputMode () );
+				Serial.print ( " #Signals " );
+				Serial.print ( m_aPinData [ i ]->GetInterruptCount () );
+				Serial.print ( " #DiscardedSignals " );
+				Serial.print ( m_aPinData [ i ]->Noise() );				
 			}
 			else
 			{
@@ -304,7 +337,7 @@ public:
 			}
 		    Serial.println();
  	 	}
-		Serial.println ( "\nNB signals seen when in INPUT mode can be false positives and only should be considered accurate if the pin has an external pullup resistor attached" );
+		Serial.println ();
 	}
 };
 
@@ -313,7 +346,7 @@ CBoardPins myPins;
 void setup ()
 {
 	Serial.begin (BAUD_RATE);
-	delay ( 1000 );
+	delay ( 1000 );			// wait for comms to settle
 	// Print config state for this run
 	Serial.print  ( "\n\n\n\n\nEncoder Setup Check Ver. " );
 	Serial.println ( VER );
@@ -353,32 +386,40 @@ void loop()
 	switch  ( iCountSec )
 	{
 		case 0:
-			// put in PULLUP mode
-			Serial.println ();
-			Serial.println ( "Checking INPUT_PULLUP mode" );
+			// check if this is to be skipped
+			if ( SKIP_INPUT_PULLUP_CHECK ==  true )
+			{
+				iCountSec = CHECK_TIME - 1;
+			}
+			else
+			{			
+				// put in PULLUP mode
+				Serial.println ( "\nChecking INPUT_PULLUP mode" );
 
-			myPins.StopISRs();
-			myPins.SetPinsMode ( INPUT_PULLUP );
-			myPins.StartISRs ();
+				myPins.StopISRs();
+				myPins.SetPinsMode ( INPUT_PULLUP );
+				myPins.StartISRs ();
 
-			Serial.println ( "Please turn encoder" );
-			delay ( 1000 );
+				Serial.println ( "Please turn encoder" );
+				myPins.Start();
+			}
 			break;
 		
-		case CHECK_TIME:
+		case CHECK_TIME * 2:				// checking every .5 seconds
 			// put in input mode
-			Serial.println ( "\nChecking INPUT mode" );
+			Serial.println ( "\nChecking INPUT mode, spurious readings can occur if no external pullups on pins" );
 			
 			myPins.StopISRs ();
 			myPins.SetPinsMode ( INPUT );
 			myPins.StartISRs ();
 
 			Serial.println ( "Please continue to turn encoder" );
-			delay ( 1000 );
+			myPins.Start();
 			break;
 		
-		case CHECK_TIME * 2:
+		case CHECK_TIME * 4:			// // checking every .5 seconds
 			// end of program
+			myPins.StopISRs();
 			Serial.println ();
 			Serial.println ( "\nFinished testing" );
 			myPins.DisplayResults ();
@@ -388,14 +429,15 @@ void loop()
 		default:
 			// check if 3 pins have signalled
 			Serial.print ( "." );
-			if ( myPins.NumPinsSignalled () >= 3 )
+			if ( myPins.NumPinsSignalled () >= PINS_LOOKING_FOR )
 			{
+				myPins.StopISRs();
 				myPins.DisplayResults ();
-				TerminateProgram ( "3 pins found, terminating program");
+				TerminateProgram ( "Minimum number of pins found, terminating program");
 			}
-			delay ( 1000 );
 			break;
 	}
+	delay ( 500 );		// check every half second
 	iCountSec++;
 }
 
