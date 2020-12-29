@@ -31,8 +31,11 @@ Starting to look for signals on pins
  
 
 Checking INPUT_PULLUP mode
+
 Please turn encoder
+
 ...
+
  Pin 2 attached to interrupt 0 signalled in mode INPUT_PULLUP #Signals 864 #DiscardedSignals 69
 
  Pin 3 attached to interrupt 1 signalled in mode INPUT_PULLUP #Signals 862 #DiscardedSignals 71
