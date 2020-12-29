@@ -15,16 +15,25 @@ Typical output
 --------------
 
 Encoder Setup Check Ver. 1
+
 Serial output running at 115200
+
 Compatibility warning: This program will only check the first 22 digital pins, your machine has 70
 
 6 pin(s) can be used for interrupts as follows:
+
 Pin #	Int Vector
+
 2	0
+
 3	1
+
 18	5
+
 19	4
+
 20	3
+
 21	2
 
 Starting to look for signals on pins
