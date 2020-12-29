@@ -28,7 +28,7 @@ Pin #	Int Vector
 21	2
 
 Starting to look for signals on pins
-
+ 
 
 Checking INPUT_PULLUP mode
 Please turn encoder
