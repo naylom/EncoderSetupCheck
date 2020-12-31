@@ -1,5 +1,5 @@
 {
-	"arduino.logLevel": "verbose",
+	"arduino.logLevel": "info",
 	"arduino.path": "f:/Program Files (x86)/Arduino",
 	"C_Cpp.vcFormat.space.beforeOpenSquareBracket": true,
 	"C_Cpp.vcFormat.space.beforeFunctionOpenParenthesis": "insert",
