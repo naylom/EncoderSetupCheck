@@ -17,7 +17,27 @@
             ],
             "intelliSenseMode": "msvc-x64",
             "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Tools/MSVC/14.28.29333/bin/Hostx64/x64/cl.exe",
-            "cStandard": "c17",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        },
+        {
+            "name": "arduino",
+            "includePath": [
+                "f:\\Program Files (x86)\\Arduino\\tools\\**",
+                "F:\\mark_\\OneDrive\\Documents\\Arduino\\libraries\\**",
+                "f:\\Program Files (x86)\\Arduino\\libraries\\**",
+                "f:\\Program Files (x86)\\Arduino\\hardware\\tools\\**",
+                "f:\\Program Files (x86)\\Arduino\\hardware\\arduino\\avr\\**"
+            ],
+            "forcedInclude": [
+                "f:\\Program Files (x86)\\Arduino\\hardware\\arduino\\avr\\cores\\arduino\\Arduino.h"
+            ],
+            "defines": [
+                "USBCON"
+            ],
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "F:\\Program Files (x86)\\Arduino\\hardware\\tools\\avr\\bin\\avr-g++.exe",
+            "cStandard": "c11",
             "cppStandard": "c++17"
         }
     ],

@@ -1,0 +1,23 @@
+{
+	"arduino.logLevel": "verbose",
+	"arduino.path": "f:/Program Files (x86)/Arduino",
+	"C_Cpp.vcFormat.space.beforeOpenSquareBracket": true,
+	"C_Cpp.vcFormat.space.beforeFunctionOpenParenthesis": "insert",
+	"C_Cpp.vcFormat.space.beforeInitializerListOpenBrace": true,
+	"C_Cpp.vcFormat.space.beforeComma": true,
+	"C_Cpp.vcFormat.newLine.beforeWhileInDoWhile": true,
+	"C_Cpp.vcFormat.newLine.beforeOpenBrace.type": "newLine",
+	"C_Cpp.vcFormat.newLine.beforeOpenBrace.namespace": "newLine",
+	"C_Cpp.vcFormat.newLine.beforeOpenBrace.function": "newLine",
+	"C_Cpp.vcFormat.newLine.beforeOpenBrace.block": "newLine",
+	"C_Cpp.vcFormat.indent.preserveComments": true,
+	"C_Cpp.vcFormat.indent.caseLabels": true,
+	"C_Cpp.loggingLevel": "Warning",
+	"C_Cpp.intelliSenseMemoryLimit": 8192,
+	"C_Cpp.formatting": "vcFormat",
+	"editor.insertSpaces": false,
+	"files.associations": {
+		"ino": "c"
+	},
+	"editor.columnSelection": true
+}
